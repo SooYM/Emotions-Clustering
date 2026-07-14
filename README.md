@@ -12,7 +12,7 @@ An end-to-end unsupervised learning pipeline and web application designed to clu
 - **Latent Projection**: Scikit-Learn `KNeighborsRegressor` ($K=5$, distance-weighted) trained to map 52D blendshapes to the 2D t-SNE coordinate space in real time.
 - **Emotion Classifier**: Pre-trained Multi-Layer Perceptron (MLP) `MLPClassifier` (`emotion_model.pkl`) loaded to classify facial blendshape features into 7 basic emotions: `happy, sad, anxiety, angry, surprised, disgust, neutral`.
 - **Backend API**: Lightweight `Flask` server serving models and executing real-time predictions.
-- **Frontend Dashboard**: Vanilla HTML5, CSS3 (glassmorphic dark theme), and high-performance HTML5 Canvas with custom animations. Includes client-side MediaPipe tasks-vision WebAssembly face meshes.
+- **Frontend Dashboard**: Vanilla HTML5, CSS3 (glassmorphic dark theme), and high-performance HTML5 Canvas with custom animations. Includes client-side MediaPipe tasks-vision WebAssembly face meshes rendering the full 478 points point cloud, contours, lips, eye outlines, brows, and pupils with real-time dynamic emotion color-coding.
 
 ---
 

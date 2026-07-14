@@ -494,6 +494,10 @@ function showPredictionResults(result) {
     processStatus.classList.add('hidden');
     resultsBox.classList.remove('hidden');
     
+    // Save to appState to color the face mesh
+    const emotion = result.emotion_label;
+    appState.predictedEmotion = emotion;
+    
     // Render Cluster Badge
     const clusterIdx = result.predicted_cluster;
     predictedBadge.innerText = `${CLUSTER_NAMES[clusterIdx]} (Cluster ${clusterIdx})`;
@@ -501,7 +505,6 @@ function showPredictionResults(result) {
     predictedBadge.style.boxShadow = `0 0 20px ${CLUSTER_COLORS[clusterIdx]}50`;
     
     // Render Emotion Badge with matching color
-    const emotion = result.emotion_label;
     emotionBadge.innerText = emotion;
     emotionBadge.style.background = EMOTION_COLORS[emotion] || '#6366f1';
     emotionBadge.style.boxShadow = `0 0 20px ${EMOTION_COLORS[emotion] || '#6366f1'}50`;
@@ -601,7 +604,7 @@ async function initMediaPipe() {
 // Helpers wrappers for MediaPipe Vision Web SDK
 async function createFilesetResolver() {
     return await createFilesetResolverForVision(
-        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
+        "/static/mediapipe_wasm"
     );
 }
 
@@ -730,8 +733,11 @@ function processWebcamFrame() {
     if (result && result.faceLandmarks && result.faceLandmarks.length > 0) {
         const landmarks = result.faceLandmarks[0];
         
-        // Draw facial wireframe outlines (eyes, eyebrows, mouth)
-        drawFaceWireframe(landmarks);
+        // Match active emotion color or fallback to indigo accent
+        const emotionColor = EMOTION_COLORS[appState.predictedEmotion] || '#6366f1';
+        
+        // Draw the full face mesh point cloud and connections matching Classification layout
+        drawFaceMesh(landmarks, emotionColor);
         
         // Check inference throttle
         const nowMs = Date.now();
@@ -755,58 +761,131 @@ function processWebcamFrame() {
     requestAnimationFrame(processWebcamFrame);
 }
 
-// Draw key connections (eyes, lips, brows) to give a neat scan effect
-function drawFaceWireframe(landmarks) {
+// Visual face connections mapping from the Classification visualizer
+const FACE_CONTOUR = [
+  10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378,
+  400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21,
+  54, 103, 67, 109
+];
+const LIPS = [
+  78, 95, 88, 178, 87, 14, 317, 402, 318, 324, 308,
+  308, 415, 310, 311, 312, 13, 82, 81, 80, 191, 78,
+  78, 191, 80, 81, 82, 13, 312, 311, 310, 415, 308,
+  308, 324, 318, 402, 317, 14, 87, 178, 88, 95, 78
+];
+const L_EYE = [263, 249, 390, 373, 374, 380, 381, 382, 362, 398, 384, 385, 386, 387, 388, 466];
+const R_EYE = [33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246];
+const L_BROW = [70, 63, 105, 66, 107, 55, 65, 52, 53, 46];
+const R_BROW = [300, 293, 334, 296, 336, 285, 295, 282, 283, 276];
+
+function drawFaceMesh(landmarks, emotionColor) {
     const ctx = webcamOverlayCtx;
     const w = webcamOverlay.width;
     const h = webcamOverlay.height;
     
-    ctx.strokeStyle = '#10b98188'; // Neon green outline
-    ctx.lineWidth = 1;
-    
-    // Define helper to draw outlines
-    function drawPath(indices, close = false) {
+    // 1. Draw delicate point cloud (all 478 landmarks)
+    ctx.fillStyle = "rgba(224, 242, 254, 0.22)"; // Translucent light blue
+    for (let i = 0; i < landmarks.length; i++) {
+        const pt = landmarks[i];
         ctx.beginPath();
-        indices.forEach((idx, i) => {
-            const pt = landmarks[idx];
-            if (i === 0) ctx.moveTo(pt.x * w, pt.y * h);
-            else ctx.lineTo(pt.x * w, pt.y * h);
-        });
-        if (close) ctx.closePath();
-        ctx.stroke();
+        ctx.arc(pt.x * w, pt.y * h, 1.2, 0, 2 * Math.PI);
+        ctx.fill();
     }
     
-    // Indices references for key face outlines
-    const L_EYE_OUTLINE = [33, 160, 158, 133, 153, 144];
-    const R_EYE_OUTLINE = [362, 385, 387, 263, 373, 380];
-    const L_BROW = [70, 63, 105, 66, 107];
-    const R_BROW = [300, 293, 334, 296, 336];
-    const LIPS_OUTER = [61, 185, 40, 39, 37, 0, 267, 269, 270, 409, 291, 375, 321, 405, 314, 17, 84, 181, 91, 146];
-    const FACE_OVAL = [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109];
-    
-    drawPath(L_EYE_OUTLINE, true);
-    drawPath(R_EYE_OUTLINE, true);
-    drawPath(L_BROW);
-    drawPath(R_BROW);
-    drawPath(LIPS_OUTER, true);
-    
-    // Draw bounding box
-    const xs = landmarks.map(p => p.x * w);
-    const ys = landmarks.map(p => p.y * h);
-    const minX = Math.min(...xs);
-    const maxX = Math.max(...xs);
-    const minY = Math.min(...ys);
-    const maxY = Math.max(...ys);
-    
-    // Draw square scanning box
-    ctx.strokeStyle = '#10b981';
+    // 2. Draw connections (outlines for lips, eyes, brows, facial contours)
     ctx.lineWidth = 1.5;
-    ctx.strokeRect(minX - 10, minY - 15, (maxX - minX) + 20, (maxY - minY) + 30);
+    ctx.lineJoin = "round";
+    ctx.shadowBlur = 6;
+    ctx.shadowColor = emotionColor;
+    ctx.strokeStyle = emotionColor;
     
-    // Scanner Text tag
-    ctx.fillStyle = '#10b981';
-    ctx.font = 'bold 10px Plus Jakarta Sans';
-    ctx.fillText("AI REALTIME SCAN", minX - 10, minY - 22);
+    const drawPath = (indices, close = false) => {
+        if (indices.length === 0) return;
+        ctx.beginPath();
+        const first = landmarks[indices[0]];
+        ctx.moveTo(first.x * w, first.y * h);
+        for (let i = 1; i < indices.length; i++) {
+            const pt = landmarks[indices[i]];
+            ctx.lineTo(pt.x * w, pt.y * h);
+        }
+        if (close) ctx.closePath();
+        ctx.stroke();
+    };
+    
+    drawPath(FACE_CONTOUR, false);
+    drawPath(LIPS, true);
+    drawPath(L_EYE, true);
+    drawPath(R_EYE, true);
+    drawPath(L_BROW, false);
+    drawPath(R_BROW, false);
+    
+    // 3. Draw glowing pupils
+    ctx.fillStyle = emotionColor;
+    ctx.shadowBlur = 8;
+    ctx.shadowColor = "#FFFFFF";
+    
+    const lPupil = landmarks[468];
+    const rPupil = landmarks[473];
+    if (lPupil) {
+        ctx.beginPath();
+        ctx.arc(lPupil.x * w, lPupil.y * h, 2.5, 0, 2 * Math.PI);
+        ctx.fill();
+    }
+    if (rPupil) {
+        ctx.beginPath();
+        ctx.arc(rPupil.x * w, rPupil.y * h, 2.5, 0, 2 * Math.PI);
+        ctx.fill();
+    }
+    ctx.shadowBlur = 0; // Reset
+    
+    // 4. Draw bounding box with padding and header tag
+    let minX = 1, maxX = 0, minY = 1, maxY = 0;
+    for (const lm of landmarks) {
+        if (lm.x < minX) minX = lm.x;
+        if (lm.x > maxX) maxX = lm.x;
+        if (lm.y < minY) minY = lm.y;
+        if (lm.y > maxY) maxY = lm.y;
+    }
+    
+    let boxX = minX * w;
+    let boxY = minY * h;
+    let boxW = (maxX - minX) * w;
+    let boxH = (maxY - minY) * h;
+    
+    // Padding (12%)
+    const paddingX = boxW * 0.12;
+    const paddingY = boxH * 0.12;
+    boxX -= paddingX;
+    boxY -= paddingY;
+    boxW += paddingX * 2;
+    boxH += paddingY * 2;
+    
+    // Clamp to canvas borders
+    boxX = Math.max(0, boxX);
+    boxY = Math.max(0, boxY);
+    boxW = Math.min(w - boxX, boxW);
+    boxH = Math.min(h - boxY, boxH);
+    
+    // Draw box
+    ctx.strokeStyle = emotionColor;
+    ctx.lineWidth = 3;
+    ctx.shadowBlur = 8;
+    ctx.shadowColor = emotionColor;
+    ctx.strokeRect(boxX, boxY, boxW, boxH);
+    ctx.shadowBlur = 0;
+    
+    // Label header
+    const labelHeight = 22;
+    let labelY = boxY - labelHeight;
+    if (labelY < 0) labelY = boxY;
+    
+    ctx.fillStyle = emotionColor;
+    ctx.fillRect(boxX, labelY, boxW, labelHeight);
+    
+    ctx.fillStyle = "#FFFFFF";
+    ctx.font = "bold 11px 'Plus Jakarta Sans', sans-serif";
+    ctx.textBaseline = "middle";
+    ctx.fillText(`👤 FACE SCAN: ${appState.predictedEmotion ? appState.predictedEmotion.toUpperCase() : "DETECTING"}`, boxX + 8, labelY + labelHeight / 2);
 }
 
 async function submitBlendshapes(blendshapesDict) {
