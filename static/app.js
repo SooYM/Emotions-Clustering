@@ -1,22 +1,28 @@
 // Application Configuration and State
 const CLUSTER_COLORS = [
-    '#38bdf8', // Cluster 0: Bright Neon Blue
-    '#4ade80', // Cluster 1: Bright Neon Green
-    '#f43f5e', // Cluster 2: Bright Neon Coral/Rose
-    '#c084fc', // Cluster 3: Bright Neon Purple
-    '#facc15', // Cluster 4: Bright Neon Yellow
-    '#22d3ee', // Cluster 5: Bright Neon Cyan
-    '#ff79c6'  // Cluster 6: Bright Neon Hot Pink
+    '#38bdf8', // 0: Sky Blue
+    '#4ade80', // 1: Emerald Green
+    '#f43f5e', // 2: Coral Rose
+    '#c084fc', // 3: Orchid Purple
+    '#facc15', // 4: Sun Yellow
+    '#22d3ee', // 5: Turquoise Cyan
+    '#ff79c6', // 6: Hot Pink
+    '#fb923c', // 7: Bright Orange
+    '#a3e635', // 8: Lime Green
+    '#2dd4bf', // 9: Teal
+    '#818cf8', // 10: Indigo
+    '#fb7185', // 11: Light Red
+    '#9333ea', // 12: Violet
+    '#34d399', // 13: Mint
+    '#a78bfa', // 14: Lavender
+    '#f472b6'  // 15: Pink
 ];
 
 const CLUSTER_NAMES = [
-    "Cluster Alpha",
-    "Cluster Beta",
-    "Cluster Gamma",
-    "Cluster Delta",
-    "Cluster Epsilon",
-    "Cluster Zeta",
-    "Cluster Eta"
+    "Cluster Alpha", "Cluster Beta", "Cluster Gamma", "Cluster Delta",
+    "Cluster Epsilon", "Cluster Zeta", "Cluster Eta", "Cluster Theta",
+    "Cluster Iota", "Cluster Kappa", "Cluster Lambda", "Cluster Mu",
+    "Cluster Nu", "Cluster Xi", "Cluster Omicron", "Cluster Pi"
 ];
 
 const EMOTION_COLORS = {
@@ -94,6 +100,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupModeToggle();
     setupWebcamControls();
     setupResizeHandler();
+    setupReclusterControls();
 });
 
 // Fetch Clusters and Coordinates
@@ -122,34 +129,42 @@ async function fetchClusterData() {
 // Build Plot Legend
 function buildLegend() {
     plotLegend.innerHTML = '';
-    CLUSTER_COLORS.forEach((color, idx) => {
+    const numActiveClusters = Object.keys(appState.representatives).length;
+    for (let idx = 0; idx < numActiveClusters; idx++) {
+        const color = CLUSTER_COLORS[idx];
         const item = document.createElement('div');
         item.className = 'legend-item';
         item.style.color = color;
+        
+        // Handle name splitting safely
+        const namePart = CLUSTER_NAMES[idx] ? CLUSTER_NAMES[idx].split(' ')[1] : `K${idx}`;
         item.innerHTML = `
             <span class="legend-color" style="background-color: ${color}"></span>
-            <span class="legend-label">C${idx} (${CLUSTER_NAMES[idx].split(' ')[1]})</span>
+            <span class="legend-label">C${idx} (${namePart})</span>
         `;
         item.addEventListener('click', () => {
             selectTab(idx);
             document.querySelector('.cluster-reps-card').scrollIntoView({ behavior: 'smooth' });
         });
         plotLegend.appendChild(item);
-    });
+    }
 }
 
 // Build Cluster Tabs for bottom viewer
 function buildTabs() {
     clusterTabs.innerHTML = '';
-    CLUSTER_COLORS.forEach((color, idx) => {
+    const numActiveClusters = Object.keys(appState.representatives).length;
+    for (let idx = 0; idx < numActiveClusters; idx++) {
+        const color = CLUSTER_COLORS[idx];
         const tab = document.createElement('button');
         tab.className = 'tab-btn';
-        tab.innerText = `C${idx}: ${CLUSTER_NAMES[idx].split(' ')[1]}`;
+        const namePart = CLUSTER_NAMES[idx] ? CLUSTER_NAMES[idx].split(' ')[1] : `K${idx}`;
+        tab.innerText = `C${idx}: ${namePart}`;
         tab.style.setProperty('--btn-color', color);
         tab.style.setProperty('--glow-color', color + '40');
         tab.addEventListener('click', () => selectTab(idx));
         clusterTabs.appendChild(tab);
-    });
+    }
 }
 
 // Select Cluster Tab and show representatives
@@ -909,5 +924,51 @@ async function submitBlendshapes(blendshapesDict) {
         
     } catch (e) {
         console.error("Failed to run blendshape prediction:", e);
+    }
+}
+
+function setupReclusterControls() {
+    const btnRecluster = document.getElementById('btnRecluster');
+    const clusterInput = document.getElementById('clusterInput');
+    
+    if (btnRecluster && clusterInput) {
+        btnRecluster.addEventListener('click', async () => {
+            const k = parseInt(clusterInput.value);
+            if (isNaN(k) || k < 2 || k > 15) {
+                alert("Please enter a cluster number between 2 and 15.");
+                return;
+            }
+            
+            btnRecluster.disabled = true;
+            const originalText = btnRecluster.innerText;
+            btnRecluster.innerText = "Running...";
+            
+            try {
+                const response = await fetch('/api/recluster', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ k: k })
+                });
+                
+                if (!response.ok) {
+                    const errData = await response.json();
+                    throw new Error(errData.error || "Re-clustering failed");
+                }
+                
+                // Clear any active predictions since centroids have shifted
+                appState.predictedPoint = null;
+                resultsBox.classList.add('hidden');
+                
+                // Fetch coordinates again and rebuild the UI dynamically
+                await fetchClusterData();
+                
+            } catch (error) {
+                console.error("Error during re-clustering:", error);
+                alert("Failed to re-cluster: " + error.message);
+            } finally {
+                btnRecluster.disabled = false;
+                btnRecluster.innerText = originalText;
+            }
+        });
     }
 }

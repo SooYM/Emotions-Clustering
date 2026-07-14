@@ -36,9 +36,17 @@
             
             <!-- Left Column: Interactive Cluster Plot -->
             <section class="card plot-card">
-                <div class="card-header">
+                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; gap: 15px; flex-wrap: wrap;">
                     <h2><i class="fa-solid fa-circle-dot icon"></i> Latent Expression Space (t-SNE)</h2>
-                    <span class="badge">Highly Separated Map</span>
+                    
+                    <!-- Re-cluster Control Widget -->
+                    <div class="recluster-widget" style="display: flex; align-items: center; gap: 8px; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 4px 10px;">
+                        <label for="clusterInput" style="font-size: 10px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Clusters (K):</label>
+                        <input type="number" id="clusterInput" min="2" max="15" value="7" style="width: 40px; background: transparent; border: none; color: #ffffff; font-family: inherit; font-size: 13px; font-weight: 700; text-align: center; outline: none; border-bottom: 2px solid var(--accent); padding-bottom: 2px;">
+                        <button id="btnRecluster" style="background: var(--accent); border: none; color: #ffffff; font-family: inherit; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 6px; cursor: pointer; transition: all 0.2s ease;">
+                            Apply
+                        </button>
+                    </div>
                 </div>
                 <div class="canvas-container">
                     <canvas id="clusterPlot"></canvas>
@@ -158,6 +166,6 @@
     </div>
 
     <!-- Custom Script -->
-    <script src="/static/app.js?v=6"></script>
+    <script src="/static/app.js?v=7"></script>
 </body>
 </html>

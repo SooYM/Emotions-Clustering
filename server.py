@@ -24,6 +24,8 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UNLABEL_DIR = os.path.join(BASE_DIR, "unlabel")
 DATA_DIR = os.path.join(BASE_DIR, "clustering", "data")
 
+FEATURES_PATH = os.path.join(DATA_DIR, "features.npy")
+PATHS_PATH = os.path.join(DATA_DIR, "paths.npy")
 KMEANS_PATH = os.path.join(DATA_DIR, "kmeans.pkl")
 KNN_REGRESSOR_PATH = os.path.join(DATA_DIR, "knn_regressor.pkl")
 DOWNSAMPLED_COORDS_PATH = os.path.join(DATA_DIR, "coords_downsampled.pkl")
@@ -45,13 +47,21 @@ coords_downsampled = None
 representatives = None
 feature_names = None
 detector = None
+features = None
+image_names = None
 
 EMOTIONS = ["happy", "sad", "anxiety", "angry", "surprised", "disgust", "neutral"]
 
 def load_models():
-    global kmeans_model, knn_model, emotion_model, coords_downsampled, representatives, feature_names, detector
+    global kmeans_model, knn_model, emotion_model, coords_downsampled, representatives, feature_names, detector, features, image_names
     
     print("Loading model checkpoints...")
+    if os.path.exists(FEATURES_PATH):
+        features = np.load(FEATURES_PATH)
+        
+    if os.path.exists(PATHS_PATH):
+        image_names = np.load(PATHS_PATH)
+        
     if os.path.exists(KMEANS_PATH):
         with open(KMEANS_PATH, "rb") as f:
             kmeans_model = pickle.load(f)
@@ -232,6 +242,64 @@ def predict_blendshapes():
     except Exception as e:
         print(f"Error predicting blendshapes: {e}")
         return jsonify({"error": f"Failed to process blendshapes: {str(e)}"}), 500
+
+@app.route("/api/recluster", methods=["POST"])
+def recluster():
+    global kmeans_model, representatives, coords_downsampled
+    
+    data = request.json or {}
+    new_k = int(data.get("k", 7))
+    
+    if new_k < 2 or new_k > 15:
+        return jsonify({"error": "Number of clusters must be between 2 and 15."}), 400
+        
+    if features is None or image_names is None:
+        return jsonify({"error": "Features cache features.npy or paths.npy is missing."}), 503
+        
+    try:
+        from sklearn.cluster import KMeans
+        
+        # 1. Run K-Means directly on 52-dim blendshapes
+        print(f"Re-clustering to K={new_k} clusters...")
+        kmeans_model = KMeans(n_clusters=new_k, random_state=42, n_init=10)
+        assignments = kmeans_model.fit_predict(features)
+        
+        # 2. Identify new representative images per cluster (closest 15)
+        representatives = {}
+        for k in range(new_k):
+            cluster_mask = (assignments == k)
+            cluster_indices = np.where(cluster_mask)[0]
+            cluster_features = features[cluster_indices]
+            centroid = kmeans_model.cluster_centers_[k]
+            
+            # Distance in 52D space
+            distances = np.linalg.norm(cluster_features - centroid, axis=1)
+            sorted_local_indices = np.argsort(distances)
+            closest_local_indices = sorted_local_indices[:15]
+            
+            cluster_reps = []
+            for local_idx in closest_local_indices:
+                global_idx = cluster_indices[local_idx]
+                cluster_reps.append({
+                    "name": str(image_names[global_idx]),
+                    "distance": float(distances[local_idx])
+                })
+            representatives[k] = cluster_reps
+            
+        # 3. Update coords_downsampled mapping
+        name_to_index = {name: idx for idx, name in enumerate(image_names)}
+        for pt in coords_downsampled:
+            name = pt["name"]
+            if name in name_to_index:
+                pt["cluster"] = int(assignments[name_to_index[name]])
+                
+        return jsonify({
+            "status": "success",
+            "num_clusters": new_k
+        })
+    except Exception as e:
+        print(f"Re-clustering failed: {e}")
+        return jsonify({"error": f"Failed to re-cluster: {str(e)}"}), 500
 
 if __name__ == "__main__":
     try:

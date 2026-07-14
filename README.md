@@ -6,13 +6,12 @@ An end-to-end unsupervised learning pipeline and web application designed to clu
 
 ## Technical Architecture
 
-- **Feature Representation**: 52-dimensional MediaPipe Face Blendshape scores (representing muscle movements like `mouthSmileLeft`, `browDownRight`, etc.).
-- **Unsupervised Clustering**: Scikit-Learn `KMeans` ($K=7$ clusters) trained directly on the blendshape coordinates.
-- **Dimensionality Reduction**: Non-linear `t-SNE` (t-Distributed Stochastic Neighbor Embedding) used on the coordinates to ensure highly separated, distinct cluster clouds.
-- **Latent Projection**: Scikit-Learn `KNeighborsRegressor` ($K=5$, distance-weighted) trained to map 52D blendshapes to the 2D t-SNE coordinate space in real time.
-- **Emotion Classifier**: Pre-trained Multi-Layer Perceptron (MLP) `MLPClassifier` (`emotion_model.pkl`) loaded to classify facial blendshape features into 7 basic emotions: `happy, sad, anxiety, angry, surprised, disgust, neutral`.
-- **Backend API**: Lightweight `Flask` server serving models and executing real-time predictions.
-- **Frontend Dashboard**: Vanilla HTML5, CSS3 (glassmorphic dark theme), and high-performance HTML5 Canvas with custom animations. Includes client-side MediaPipe tasks-vision WebAssembly face meshes rendering the full 478 points point cloud, contours, lips, eye outlines, brows, and pupils with real-time dynamic emotion color-coding.
+The application combines supervised emotion models with unsupervised clustering and manifold embedding:
+1. **Unsupervised K-Means Clustering**: Clusters the 52-dimensional facial muscle blendshape features extracted by MediaPipe. The K-means algorithm groups expressions based strictly on muscle activation similarities. The number of clusters ($K$) is fully configurable by the user at runtime.
+2. **t-SNE Dimensionality Reduction**: Manifold learning (t-Distributed Stochastic Neighbor Embedding) translates the high-dimensional (52D) facial muscle scores into a highly-separated 2D space. t-SNE models local similarities to ensure cluster clusters are visually distinct.
+3. **K-Neighbors Regression (Point Mapping)**: A distance-weighted KNN regressor ($K=5$) bridges the 52D model features to the 2D t-SNE space, enabling immediate coordinate projection for custom webcam frames and uploads without re-running the heavy t-SNE solver.
+4. **Multi-Layer Perceptron (Emotion Classifier)**: A supervised MLP neural network predicts corresponding emotion probabilities, which dynamically color-code the user's face mesh.
+5. **Interactive Controls**: Allows live, real-time recalculation of K-Means clusters via the frontend control widget.
 
 ---
 
@@ -86,3 +85,8 @@ Clustering/
 - **Route**: `POST /api/predict_blendshapes`
 - **JSON Payload**: `{"blendshapes": {"browDownLeft": 0.0, "mouthSmileLeft": 0.8, ...}}`
 - **Output**: JSON payload returning predicted cluster, coordinates `[x, y]`, centroid distances, predicted emotion label, and probabilities.
+
+### 4. Live Custom Re-Clustering
+- **Route**: `POST /api/recluster`
+- **JSON Payload**: `{"k": 5}` (number of clusters $K$ between 2 and 15)
+- **Output**: JSON payload confirming success: `{"status": "success", "num_clusters": 5}`. Centroids, point labels, and representative galleries are immediately re-calculated on the fly.
