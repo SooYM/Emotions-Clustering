@@ -81,7 +81,6 @@ const webcamStatusText = document.getElementById('webcamStatusText');
 // Output DOMs
 const resultsBox = document.getElementById('resultsBox');
 const predictedBadge = document.getElementById('predictedBadge');
-const emotionBadge = document.getElementById('emotionBadge');
 const distanceList = document.getElementById('distanceList');
 const clusterTabs = document.getElementById('clusterTabs');
 const repsGrid = document.getElementById('repsGrid');
@@ -508,11 +507,6 @@ function showPredictionResults(result) {
     predictedBadge.innerText = `${CLUSTER_NAMES[clusterIdx]} (Cluster ${clusterIdx})`;
     predictedBadge.style.backgroundColor = CLUSTER_COLORS[clusterIdx];
     predictedBadge.style.boxShadow = `0 0 20px ${CLUSTER_COLORS[clusterIdx]}50`;
-    
-    // Render Emotion Badge with matching color
-    emotionBadge.innerText = emotion;
-    emotionBadge.style.background = EMOTION_COLORS[emotion] || '#6366f1';
-    emotionBadge.style.boxShadow = `0 0 20px ${EMOTION_COLORS[emotion] || '#6366f1'}50`;
     
     // Set prediction coordinates overlay on plot
     appState.predictedPoint = {
