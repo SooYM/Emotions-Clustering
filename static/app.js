@@ -1,12 +1,12 @@
 // Application Configuration and State
 const CLUSTER_COLORS = [
-    '#3b82f6', // Cluster 0: Blue
-    '#10b981', // Cluster 1: Emerald
-    '#f43f5e', // Cluster 2: Rose
-    '#a855f7', // Cluster 3: Purple
-    '#eab308', // Cluster 4: Amber
-    '#06b6d4', // Cluster 5: Cyan
-    '#ec4899'  // Cluster 6: Pink
+    '#38bdf8', // Cluster 0: Bright Neon Blue
+    '#4ade80', // Cluster 1: Bright Neon Green
+    '#f43f5e', // Cluster 2: Bright Neon Coral/Rose
+    '#c084fc', // Cluster 3: Bright Neon Purple
+    '#facc15', // Cluster 4: Bright Neon Yellow
+    '#22d3ee', // Cluster 5: Bright Neon Cyan
+    '#ff79c6'  // Cluster 6: Bright Neon Hot Pink
 ];
 
 const CLUSTER_NAMES = [
@@ -20,13 +20,13 @@ const CLUSTER_NAMES = [
 ];
 
 const EMOTION_COLORS = {
-    "happy": "#10b981",
-    "sad": "#3b82f6",
-    "anxiety": "#a855f7",
+    "happy": "#4ade80",
+    "sad": "#38bdf8",
+    "anxiety": "#c084fc",
     "angry": "#f43f5e",
-    "surprised": "#eab308",
-    "disgust": "#06b6d4",
-    "neutral": "#6366f1"
+    "surprised": "#facc15",
+    "disgust": "#22d3ee",
+    "neutral": "#818cf8"
 };
 
 let appState = {
@@ -266,10 +266,15 @@ function drawPlot() {
     // Draw data points
     appState.coords.forEach(pt => {
         const screenPt = toScreen(pt.x, pt.y);
-        ctx.fillStyle = CLUSTER_COLORS[pt.cluster] + 'bb'; // Increased opacity for better visibility
+        ctx.fillStyle = CLUSTER_COLORS[pt.cluster]; // Solid bright colors
         ctx.beginPath();
-        ctx.arc(screenPt.x, screenPt.y, 4.5, 0, 2 * Math.PI); // Slightly larger points
+        ctx.arc(screenPt.x, screenPt.y, 5.0, 0, 2 * Math.PI); // Solid 5px radius
         ctx.fill();
+        
+        // Add dark stroke around points to prevent bleeding and improve contrast/separation
+        ctx.strokeStyle = 'rgba(11, 9, 20, 0.8)';
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
     });
     
     // Draw predicted point if active
