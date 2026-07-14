@@ -609,24 +609,31 @@ async function createFilesetResolver() {
 }
 
 async function createFilesetResolverForVision(url) {
-    // MediaPipe Vision Tasks resolver global namespace wrapper from Vision bundle script
-    if (typeof Module !== 'undefined' && typeof createFilesetResolver !== 'undefined') {
+    // Resolve from global 'vision' namespace (vision_bundle.js CDN)
+    if (window.vision && window.vision.FilesetResolver) {
+        return await window.vision.FilesetResolver.forVisionTasks(url);
+    }
+    // Fallback: Resolve from window.mp or window.mediapipe
+    const mpTasks = window.mp || window.mediapipe || {};
+    const tasksNamespace = mpTasks.tasks || window.vision || {};
+    if (tasksNamespace.FilesetResolver) {
+        return await tasksNamespace.FilesetResolver.forVisionTasks(url);
+    }
+    // Fallback for global createFilesetResolver helper
+    if (typeof createFilesetResolver !== 'undefined') {
         return await createFilesetResolver(url);
     }
-    // Standard module import mapping fallback
-    const { FilesetResolver } = dummy_mediapipe_bundle_vision_namespace();
-    return await FilesetResolver.forVisionTasks(url);
-}
-
-function dummy_mediapipe_bundle_vision_namespace() {
-    // If the bundle loaded, it injects "mp" or "mediapipe" globals on window
-    const mpTasks = window.mp || window.mediapipe || {};
-    return mpTasks.tasks || {};
+    throw new Error("FilesetResolver is not defined in any loaded namespace.");
 }
 
 async function createFaceLandmarker(visionBundle) {
     const mpTasks = window.mp || window.mediapipe || {};
-    const FaceLandmarker = mpTasks.tasks.FaceLandmarker;
+    const tasksNamespace = mpTasks.tasks || window.vision || {};
+    const FaceLandmarker = tasksNamespace.FaceLandmarker;
+    
+    if (!FaceLandmarker) {
+        throw new Error("FaceLandmarker is not defined in any loaded namespace.");
+    }
     
     return await FaceLandmarker.createFromOptions(visionBundle, {
         baseOptions: {
