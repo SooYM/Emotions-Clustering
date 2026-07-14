@@ -4,48 +4,81 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ClusterFace - Latent Space Emotion Visualizer</title>
-    <!-- Google Fonts -->
+    <!-- Google Fonts: Anton (condensed display) + Archivo (UI) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,700&display=swap" rel="stylesheet">
     <!-- FontAwesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Custom Style -->
-    <link rel="stylesheet" href="/static/style.css?v=3">
+    <link rel="stylesheet" href="/static/style.css?v=4">
     <!-- MediaPipe Tasks-Vision Library -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm/vision_bundle.js" crossorigin="anonymous"></script>
 </head>
 <body>
-    <div class="glass-bg"></div>
-    
+    <div class="noise-bg"></div>
+
     <div class="app-container">
-        <!-- Sidebar / Header -->
+        <!-- Top bar -->
+        <nav class="top-bar">
+            <div class="top-bar-brand">
+                <span class="brand-dot"></span>
+                <span>ClusterFace</span>
+            </div>
+            <span class="top-bar-meta">Latent Space Expression Clustering</span>
+            <span class="top-bar-meta right">MediaPipe &times; t-SNE &times; K-Means</span>
+        </nav>
+
+        <!-- Hero Header -->
         <header class="app-header">
-            <div class="logo">
-                <i class="fa-solid fa-circle-nodes logo-icon"></i>
-                <div class="logo-text">
-                    <h1>ClusterFace</h1>
-                    <span>Latent Space Expression Clustering</span>
+            <h1 class="hero-title">
+                Cluster<span class="accent">Face</span>
+            </h1>
+            <p class="subtitle">
+                <span class="accent-word">28,806 faces</span> mapped into latent expression space using
+                MediaPipe blendshapes &mdash; <span class="accent-word">52 facial muscle features</span>,
+                t-SNE coordinate separation and real-time webcam inference.
+            </p>
+            <div class="hero-stats">
+                <div class="stat-block">
+                    <span class="stat-num">28,806</span>
+                    <span class="stat-label">Face Images</span>
+                </div>
+                <div class="stat-block">
+                    <span class="stat-num">52</span>
+                    <span class="stat-label">Blendshapes</span>
+                </div>
+                <div class="stat-block">
+                    <span class="stat-num">2D</span>
+                    <span class="stat-label">t-SNE Projection</span>
+                </div>
+                <div class="stat-block">
+                    <span class="stat-num">K</span>
+                    <span class="stat-label">Dynamic Clusters</span>
                 </div>
             </div>
-            <p class="subtitle">Exploring 28,806 face images clustered using MediaPipe Face blendshapes (52 facial muscle features), t-SNE coordinate separation, and real-time webcam inference.</p>
         </header>
+
+        <!-- Marquee ticker -->
+        <div class="marquee" aria-hidden="true">
+            <div class="marquee-track">
+                <span>Latent Space Clustering &mdash; 28,806 Faces &mdash; 52 Blendshapes &mdash; Real-Time Inference &mdash; K-Means &mdash; t-SNE &mdash;&nbsp;</span><span>Latent Space Clustering &mdash; 28,806 Faces &mdash; 52 Blendshapes &mdash; Real-Time Inference &mdash; K-Means &mdash; t-SNE &mdash;&nbsp;</span>
+            </div>
+        </div>
 
         <!-- Main Dashboard Layout -->
         <main class="dashboard-grid">
-            
+
             <!-- Left Column: Interactive Cluster Plot -->
             <section class="card plot-card">
-                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; gap: 15px; flex-wrap: wrap;">
-                    <h2><i class="fa-solid fa-circle-dot icon"></i> Latent Expression Space (t-SNE)</h2>
-                    
+                <div class="card-header">
+                    <h2><span class="section-index">01/</span> Latent Expression Space</h2>
+
                     <!-- Re-cluster Control Widget -->
-                    <div class="recluster-widget" style="display: flex; align-items: center; gap: 8px; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 4px 10px;">
-                        <label for="clusterInput" style="font-size: 10px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Clusters (K):</label>
-                        <input type="number" id="clusterInput" min="2" max="15" value="7" style="width: 40px; background: transparent; border: none; color: #ffffff; font-family: inherit; font-size: 13px; font-weight: 700; text-align: center; outline: none; border-bottom: 2px solid var(--accent); padding-bottom: 2px;">
-                        <button id="btnRecluster" style="background: var(--accent); border: none; color: #ffffff; font-family: inherit; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 6px; cursor: pointer; transition: all 0.2s ease;">
-                            Apply
-                        </button>
+                    <div class="recluster-widget">
+                        <label for="clusterInput">Clusters (K)</label>
+                        <input type="number" id="clusterInput" min="2" max="15" value="7">
+                        <button id="btnRecluster">Apply</button>
                     </div>
                 </div>
                 <div class="canvas-container">
@@ -63,13 +96,13 @@
             <!-- Right Column: Inference / Prediction -->
             <section class="card upload-card">
                 <div class="card-header">
-                    <h2><i class="fa-solid fa-bolt icon"></i> Expression Capture</h2>
+                    <h2><span class="section-index">02/</span> Expression Capture</h2>
                     <div class="toggle-tabs">
                         <button class="toggle-btn active" id="btnModeImage"><i class="fa-solid fa-image"></i> Image</button>
                         <button class="toggle-btn" id="btnModeWebcam"><i class="fa-solid fa-video"></i> Live Scan</button>
                     </div>
                 </div>
-                
+
                 <div class="inference-container">
                     <!-- MODE 1: Single Image Upload -->
                     <div class="mode-container" id="imageModeContainer">
@@ -79,11 +112,11 @@
                             <div class="drop-zone-content">
                                 <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
                                 <h3>Upload Face Image</h3>
-                                <p>or drag & drop here</p>
+                                <p>or drag &amp; drop here</p>
                                 <span class="hint">Extracts 52 blendshapes via MediaPipe</span>
                             </div>
                         </div>
-                        
+
                         <!-- Preview and Processing Status -->
                         <div class="preview-container hidden" id="previewContainer">
                             <div class="preview-box">
@@ -103,7 +136,7 @@
                             <div class="webcam-video-wrapper">
                                 <video id="webcamVideo" autoplay playsinline muted></video>
                                 <canvas id="webcamOverlay"></canvas>
-                                
+
                                 <div class="scanner-curtain" id="webcamStatusOverlay">
                                     <div class="curtain-loader">
                                         <div class="spinner large"></div>
@@ -111,7 +144,7 @@
                                     </div>
                                 </div>
                             </div>
-                            
+
                             <div class="webcam-controls">
                                 <button class="btn-webcam start" id="btnStartWebcam">
                                     <i class="fa-solid fa-play"></i> Start Camera Scan
@@ -122,20 +155,20 @@
                             </div>
                         </div>
                     </div>
-                    
+
                     <!-- Prediction Results (Unified for both modes, Hidden initially) -->
                     <div class="results-box hidden" id="resultsBox">
                         <div class="prediction-header">
                             <div class="result-row">
-                                <div class="cluster-match" style="flex: 1; text-align: center;">
+                                <div class="cluster-match">
                                     <h3>Assigned Cluster</h3>
-                                    <div class="predicted-cluster-badge" id="predictedBadge" style="margin: 0 auto; width: fit-content; min-width: 200px;">Cluster 0</div>
+                                    <div class="predicted-cluster-badge" id="predictedBadge">Cluster 0</div>
                                 </div>
                             </div>
                         </div>
-                        
+
                         <div class="similarity-section">
-                            <h4><i class="fa-solid fa-chart-simple icon"></i> Similarity Metrics</h4>
+                            <h4>Similarity Metrics</h4>
                             <div class="dist-list" id="distanceList">
                                 <!-- Dynamic progress bars -->
                             </div>
@@ -148,7 +181,7 @@
         <!-- Bottom Section: Cluster Representative Face Viewer -->
         <section class="card cluster-reps-card">
             <div class="card-header">
-                <h2><i class="fa-solid fa-images icon"></i> Cluster Visual Manifestations</h2>
+                <h2><span class="section-index">03/</span> Cluster Visual Manifestations</h2>
                 <div class="tabs-container" id="clusterTabs">
                     <!-- Dynamic cluster tabs -->
                 </div>
@@ -163,6 +196,12 @@
                 </div>
             </div>
         </section>
+
+        <!-- Footer -->
+        <footer class="app-footer">
+            <span class="footer-big">Always <span class="accent">clustering</span>.</span>
+            <span class="footer-meta">&copy; 2026 ClusterFace &mdash; Latent Space Expression Explorer</span>
+        </footer>
     </div>
 
     <!-- Custom Script -->
