@@ -1,0 +1,32 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Node modules & build files
+node_modules
+dist
+dist-ssr
+*.local
+
+# System & Editor files
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Dataset & ML cache files (to avoid committing 30,000+ files and heavy binaries)
+Dataset/
+unlabel/
+clustering/data/features.npy
+clustering/data/paths.npy
+clustering/data/kmeans.pkl
+clustering/data/pca.pkl
+
+# Keep specific models or smaller lists if needed, or ignore everything in data
+# clustering/data/

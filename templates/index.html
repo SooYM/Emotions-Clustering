@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ClusterFace - Image Clustering Explorator</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom Style -->
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="glass-bg"></div>
+    
+    <div class="app-container">
+        <!-- Sidebar / Header -->
+        <header class="app-header">
+            <div class="logo">
+                <i class="fa-solid fa-circle-nodes logo-icon"></i>
+                <div class="logo-text">
+                    <h1>ClusterFace</h1>
+                    <span>Unsupervised Image Clustering Visualizer</span>
+                </div>
+            </div>
+            <p class="subtitle">Exploring 32,298 unlabeled images clustered dynamically using a deep ResNet18 feature extractor, K-means, and PCA projection.</p>
+        </header>
+
+        <!-- Main Dashboard Layout -->
+        <main class="dashboard-grid">
+            
+            <!-- Left Column: Interactive Cluster Plot -->
+            <section class="card plot-card">
+                <div class="card-header">
+                    <h2><i class="fa-solid fa-chart-scatter icon"></i> 2D Latent Space Projection</h2>
+                    <span class="badge">Interactive Map (PCA)</span>
+                </div>
+                <div class="canvas-container">
+                    <canvas id="clusterPlot"></canvas>
+                    <div id="plotTooltip" class="plot-tooltip hidden">
+                        <img id="tooltipImg" src="" alt="Face Preview">
+                        <span id="tooltipText"></span>
+                    </div>
+                </div>
+                <div class="plot-legend" id="plotLegend">
+                    <!-- Dynamic legend items inserted by JS -->
+                </div>
+            </section>
+
+            <!-- Right Column: Inference / Prediction -->
+            <section class="card upload-card">
+                <div class="card-header">
+                    <h2><i class="fa-solid fa-cube icon"></i> Real-time Clustering Inference</h2>
+                    <span class="badge accent">Inference</span>
+                </div>
+                
+                <div class="inference-container">
+                    <!-- Drop Zone -->
+                    <div class="drop-zone" id="dropZone">
+                        <input type="file" id="fileInput" accept="image/*" class="file-input">
+                        <div class="drop-zone-content">
+                            <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
+                            <h3>Drag & Drop Face Image</h3>
+                            <p>or click to browse from files</p>
+                            <span class="hint">Works best with 48x48 portrait faces</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Preview and Processing Status -->
+                    <div class="preview-container hidden" id="previewContainer">
+                        <div class="preview-box">
+                            <img id="imagePreview" src="" alt="Preview">
+                            <button class="btn btn-close" id="btnReset"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                        <div class="process-status" id="processStatus">
+                            <div class="spinner"></div>
+                            <span>Analyzing features using ResNet18...</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Prediction Results (Hidden initially) -->
+                    <div class="results-box hidden" id="resultsBox">
+                        <div class="prediction-header">
+                            <div class="cluster-match">
+                                <h3>Assigned Cluster</h3>
+                                <div class="predicted-cluster-badge" id="predictedBadge">Cluster 0</div>
+                            </div>
+                        </div>
+                        
+                        <div class="similarity-section">
+                            <h4><i class="fa-solid fa-chart-bar icon"></i> Proximity to Centroids (Distance)</h4>
+                            <div class="dist-list" id="distanceList">
+                                <!-- Dynamic progress bars -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Bottom Section: Cluster Representative Face Viewer -->
+        <section class="card cluster-reps-card">
+            <div class="card-header">
+                <h2><i class="fa-solid fa-images icon"></i> Cluster Visual Manifestations</h2>
+                <div class="tabs-container" id="clusterTabs">
+                    <!-- Dynamic cluster tabs -->
+                </div>
+            </div>
+            <div class="reps-gallery-wrapper">
+                <div class="reps-gallery-info">
+                    <h3 id="galleryTitle">Cluster 0 Details</h3>
+                    <p id="galleryDesc">Showing the 15 closest sample images to the cluster center.</p>
+                </div>
+                <div class="reps-grid" id="repsGrid">
+                    <!-- Dynamic images loaded by JS -->
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Custom Script -->
+    <script src="/static/app.js"></script>
+</body>
+</html>
