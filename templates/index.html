@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ClusterFace - Image Clustering Explorator</title>
+    <title>ClusterFace - Latent Space Emotion Visualizer</title>
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,6 +12,8 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Custom Style -->
     <link rel="stylesheet" href="/static/style.css">
+    <!-- MediaPipe Tasks-Vision Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm/vision_bundle.js" crossorigin="anonymous"></script>
 </head>
 <body>
     <div class="glass-bg"></div>
@@ -23,10 +25,10 @@
                 <i class="fa-solid fa-circle-nodes logo-icon"></i>
                 <div class="logo-text">
                     <h1>ClusterFace</h1>
-                    <span>Unsupervised Image Clustering Visualizer</span>
+                    <span>Latent Space Expression Clustering</span>
                 </div>
             </div>
-            <p class="subtitle">Exploring 32,298 unlabeled images clustered dynamically using a deep ResNet18 feature extractor, K-means, and PCA projection.</p>
+            <p class="subtitle">Exploring 28,806 face images clustered using MediaPipe Face blendshapes (52 facial muscle features), t-SNE coordinate separation, and real-time webcam inference.</p>
         </header>
 
         <!-- Main Dashboard Layout -->
@@ -35,8 +37,8 @@
             <!-- Left Column: Interactive Cluster Plot -->
             <section class="card plot-card">
                 <div class="card-header">
-                    <h2><i class="fa-solid fa-chart-scatter icon"></i> 2D Latent Space Projection</h2>
-                    <span class="badge">Interactive Map (PCA)</span>
+                    <h2><i class="fa-solid fa-circle-dot icon"></i> Latent Expression Space (t-SNE)</h2>
+                    <span class="badge">Highly Separated Map</span>
                 </div>
                 <div class="canvas-container">
                     <canvas id="clusterPlot"></canvas>
@@ -53,45 +55,83 @@
             <!-- Right Column: Inference / Prediction -->
             <section class="card upload-card">
                 <div class="card-header">
-                    <h2><i class="fa-solid fa-cube icon"></i> Real-time Clustering Inference</h2>
-                    <span class="badge accent">Inference</span>
+                    <h2><i class="fa-solid fa-bolt icon"></i> Expression Capture</h2>
+                    <div class="toggle-tabs">
+                        <button class="toggle-btn active" id="btnModeImage"><i class="fa-solid fa-image"></i> Image</button>
+                        <button class="toggle-btn" id="btnModeWebcam"><i class="fa-solid fa-video"></i> Live Scan</button>
+                    </div>
                 </div>
                 
                 <div class="inference-container">
-                    <!-- Drop Zone -->
-                    <div class="drop-zone" id="dropZone">
-                        <input type="file" id="fileInput" accept="image/*" class="file-input">
-                        <div class="drop-zone-content">
-                            <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
-                            <h3>Drag & Drop Face Image</h3>
-                            <p>or click to browse from files</p>
-                            <span class="hint">Works best with 48x48 portrait faces</span>
+                    <!-- MODE 1: Single Image Upload -->
+                    <div class="mode-container" id="imageModeContainer">
+                        <!-- Drop Zone -->
+                        <div class="drop-zone" id="dropZone">
+                            <input type="file" id="fileInput" accept="image/*" class="file-input">
+                            <div class="drop-zone-content">
+                                <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
+                                <h3>Upload Face Image</h3>
+                                <p>or drag & drop here</p>
+                                <span class="hint">Extracts 52 blendshapes via MediaPipe</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Preview and Processing Status -->
+                        <div class="preview-container hidden" id="previewContainer">
+                            <div class="preview-box">
+                                <img id="imagePreview" src="" alt="Preview">
+                                <button class="btn btn-close" id="btnReset"><i class="fa-solid fa-xmark"></i></button>
+                            </div>
+                            <div class="process-status" id="processStatus">
+                                <div class="spinner"></div>
+                                <span>Running local landmarker...</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- MODE 2: Live Webcam Scan -->
+                    <div class="mode-container hidden" id="webcamModeContainer">
+                        <div class="webcam-scanner">
+                            <div class="webcam-video-wrapper">
+                                <video id="webcamVideo" autoplay playsinline muted></video>
+                                <canvas id="webcamOverlay"></canvas>
+                                
+                                <div class="scanner-curtain" id="webcamStatusOverlay">
+                                    <div class="curtain-loader">
+                                        <div class="spinner large"></div>
+                                        <span id="webcamStatusText">Initializing scanner...</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="webcam-controls">
+                                <button class="btn-webcam start" id="btnStartWebcam">
+                                    <i class="fa-solid fa-play"></i> Start Camera Scan
+                                </button>
+                                <button class="btn-webcam stop hidden" id="btnStopWebcam">
+                                    <i class="fa-solid fa-pause"></i> Stop Camera Scan
+                                </button>
+                            </div>
                         </div>
                     </div>
                     
-                    <!-- Preview and Processing Status -->
-                    <div class="preview-container hidden" id="previewContainer">
-                        <div class="preview-box">
-                            <img id="imagePreview" src="" alt="Preview">
-                            <button class="btn btn-close" id="btnReset"><i class="fa-solid fa-xmark"></i></button>
-                        </div>
-                        <div class="process-status" id="processStatus">
-                            <div class="spinner"></div>
-                            <span>Analyzing features using ResNet18...</span>
-                        </div>
-                    </div>
-                    
-                    <!-- Prediction Results (Hidden initially) -->
+                    <!-- Prediction Results (Unified for both modes, Hidden initially) -->
                     <div class="results-box hidden" id="resultsBox">
                         <div class="prediction-header">
-                            <div class="cluster-match">
-                                <h3>Assigned Cluster</h3>
-                                <div class="predicted-cluster-badge" id="predictedBadge">Cluster 0</div>
+                            <div class="result-row">
+                                <div class="cluster-match">
+                                    <h3>Predicted Emotion</h3>
+                                    <div class="emotion-badge" id="emotionBadge">Happy</div>
+                                </div>
+                                <div class="cluster-match">
+                                    <h3>Assigned Cluster</h3>
+                                    <div class="predicted-cluster-badge" id="predictedBadge">Cluster 0</div>
+                                </div>
                             </div>
                         </div>
                         
                         <div class="similarity-section">
-                            <h4><i class="fa-solid fa-chart-bar icon"></i> Proximity to Centroids (Distance)</h4>
+                            <h4><i class="fa-solid fa-chart-simple icon"></i> Similarity Metrics</h4>
                             <div class="dist-list" id="distanceList">
                                 <!-- Dynamic progress bars -->
                             </div>

@@ -19,6 +19,16 @@ const CLUSTER_NAMES = [
     "Cluster Eta"
 ];
 
+const EMOTION_COLORS = {
+    "happy": "#10b981",
+    "sad": "#3b82f6",
+    "anxiety": "#a855f7",
+    "angry": "#f43f5e",
+    "surprised": "#eab308",
+    "disgust": "#06b6d4",
+    "neutral": "#6366f1"
+};
+
 let appState = {
     coords: [],          // Downsampled coordinates
     representatives: {}, // Representatives per cluster
@@ -27,9 +37,14 @@ let appState = {
     animationFrame: null,// Animation frame ID
     pulseRadius: 6,
     pulseGrowing: true,
-    scale: 1,
-    offsetX: 0,
-    offsetY: 0
+    
+    // Mode and Webcam States
+    currentMode: "image", // "image" or "webcam"
+    webcamActive: false,
+    faceLandmarker: null,
+    stream: null,
+    lastInferenceTime: 0,
+    inferenceThrottleMs: 800
 };
 
 // DOM Elements
@@ -39,14 +54,34 @@ const tooltip = document.getElementById('plotTooltip');
 const tooltipImg = document.getElementById('tooltipImg');
 const tooltipText = document.getElementById('tooltipText');
 const plotLegend = document.getElementById('plotLegend');
+
+// Mode toggle buttons
+const btnModeImage = document.getElementById('btnModeImage');
+const btnModeWebcam = document.getElementById('btnModeWebcam');
+const imageModeContainer = document.getElementById('imageModeContainer');
+const webcamModeContainer = document.getElementById('webcamModeContainer');
+
+// Image upload DOMs
 const dropZone = document.getElementById('dropZone');
 const fileInput = document.getElementById('fileInput');
 const previewContainer = document.getElementById('previewContainer');
 const imagePreview = document.getElementById('imagePreview');
 const btnReset = document.getElementById('btnReset');
 const processStatus = document.getElementById('processStatus');
+
+// Webcam DOMs
+const webcamVideo = document.getElementById('webcamVideo');
+const webcamOverlay = document.getElementById('webcamOverlay');
+const webcamOverlayCtx = webcamOverlay.getContext('2d');
+const btnStartWebcam = document.getElementById('btnStartWebcam');
+const btnStopWebcam = document.getElementById('btnStopWebcam');
+const webcamStatusOverlay = document.getElementById('webcamStatusOverlay');
+const webcamStatusText = document.getElementById('webcamStatusText');
+
+// Output DOMs
 const resultsBox = document.getElementById('resultsBox');
 const predictedBadge = document.getElementById('predictedBadge');
+const emotionBadge = document.getElementById('emotionBadge');
 const distanceList = document.getElementById('distanceList');
 const clusterTabs = document.getElementById('clusterTabs');
 const repsGrid = document.getElementById('repsGrid');
@@ -57,6 +92,8 @@ const galleryDesc = document.getElementById('galleryDesc');
 document.addEventListener('DOMContentLoaded', () => {
     fetchClusterData();
     setupUploadHandlers();
+    setupModeToggle();
+    setupWebcamControls();
     setupResizeHandler();
 });
 
@@ -109,7 +146,6 @@ function buildTabs() {
         const tab = document.createElement('button');
         tab.className = 'tab-btn';
         tab.innerText = `C${idx}: ${CLUSTER_NAMES[idx].split(' ')[1]}`;
-        // Set CSS variables for tab coloring
         tab.style.setProperty('--btn-color', color);
         tab.style.setProperty('--glow-color', color + '40');
         tab.addEventListener('click', () => selectTab(idx));
@@ -148,8 +184,6 @@ function selectTab(idx) {
         wrapper.innerHTML = `
             <img src="/images/${rep.name}" alt="${rep.name}" loading="lazy">
         `;
-        
-        // Show file name in tooltip on hover inside gallery
         wrapper.title = `${rep.name} (Dist: ${rep.distance.toFixed(3)})`;
         repsGrid.appendChild(wrapper);
     });
@@ -164,7 +198,6 @@ function initCanvas() {
     canvas.height = container.clientHeight * window.devicePixelRatio;
     ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
     
-    // Determine bounds
     if (appState.coords.length === 0) return;
     
     const xs = appState.coords.map(c => c.x);
@@ -175,7 +208,6 @@ function initCanvas() {
     mapBounds.minY = Math.min(...ys);
     mapBounds.maxY = Math.max(...ys);
     
-    // Pad bounds slightly to avoid edge clipping
     const xPad = (mapBounds.maxX - mapBounds.minX) * 0.08;
     const yPad = (mapBounds.maxY - mapBounds.minY) * 0.08;
     mapBounds.minX -= xPad;
@@ -196,27 +228,14 @@ function setupResizeHandler() {
     });
 }
 
-// Transform Data to Screen Coordinates
 function toScreen(x, y) {
     const w = canvas.width / window.devicePixelRatio;
     const h = canvas.height / window.devicePixelRatio;
     
     const screenX = ((x - mapBounds.minX) / (mapBounds.maxX - mapBounds.minX)) * w;
-    // Invert Y axis for standard cartesian visualization
     const screenY = h - (((y - mapBounds.minY) / (mapBounds.maxY - mapBounds.minY)) * h);
     
     return { x: screenX, y: screenY };
-}
-
-// Transform Screen Coordinates to Latent Space
-function toLatent(screenX, screenY) {
-    const w = canvas.width / window.devicePixelRatio;
-    const h = canvas.height / window.devicePixelRatio;
-    
-    const x = mapBounds.minX + (screenX / w) * (mapBounds.maxX - mapBounds.minX);
-    const y = mapBounds.minY + ((h - screenY) / h) * (mapBounds.maxY - mapBounds.minY);
-    
-    return { x, y };
 }
 
 // Draw Plot Frame
@@ -247,9 +266,9 @@ function drawPlot() {
     // Draw data points
     appState.coords.forEach(pt => {
         const screenPt = toScreen(pt.x, pt.y);
-        ctx.fillStyle = CLUSTER_COLORS[pt.cluster] + 'aa'; // With transparency
+        ctx.fillStyle = CLUSTER_COLORS[pt.cluster] + 'bb'; // Increased opacity for better visibility
         ctx.beginPath();
-        ctx.arc(screenPt.x, screenPt.y, 3, 0, 2 * Math.PI);
+        ctx.arc(screenPt.x, screenPt.y, 4.5, 0, 2 * Math.PI); // Slightly larger points
         ctx.fill();
     });
     
@@ -260,20 +279,20 @@ function drawPlot() {
         
         // Animated Pulse Ring
         ctx.strokeStyle = color;
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.arc(pPt.x, pPt.y, appState.pulseRadius, 0, 2 * Math.PI);
         ctx.stroke();
         
         // Glowing Core
-        const gradient = ctx.createRadialGradient(pPt.x, pPt.y, 1, pPt.x, pPt.y, 7);
+        const gradient = ctx.createRadialGradient(pPt.x, pPt.y, 1, pPt.x, pPt.y, 9);
         gradient.addColorStop(0, '#ffffff');
         gradient.addColorStop(0.3, color);
         gradient.addColorStop(1, 'transparent');
         ctx.fillStyle = gradient;
         
         ctx.beginPath();
-        ctx.arc(pPt.x, pPt.y, 7, 0, 2 * Math.PI);
+        ctx.arc(pPt.x, pPt.y, 9, 0, 2 * Math.PI);
         ctx.fill();
     }
 }
@@ -281,13 +300,12 @@ function drawPlot() {
 // Animation loop
 function startAnimationLoop() {
     function animate() {
-        // Update pulse radius
         if (appState.pulseGrowing) {
-            appState.pulseRadius += 0.3;
-            if (appState.pulseRadius >= 18) appState.pulseGrowing = false;
+            appState.pulseRadius += 0.35;
+            if (appState.pulseRadius >= 20) appState.pulseGrowing = false;
         } else {
-            appState.pulseRadius -= 0.3;
-            if (appState.pulseRadius <= 6) appState.pulseGrowing = true;
+            appState.pulseRadius -= 0.35;
+            if (appState.pulseRadius <= 5) appState.pulseGrowing = true;
         }
         
         drawPlot();
@@ -303,9 +321,8 @@ function setupCanvasInteractions() {
         const mouseX = e.clientX - rect.left;
         const mouseY = e.clientY - rect.top;
         
-        // Find nearest point
         let nearest = null;
-        let minDist = 18; // Max hover distance in pixels
+        let minDist = 20; // Max hover distance in pixels
         
         appState.coords.forEach(pt => {
             const screenPt = toScreen(pt.x, pt.y);
@@ -321,13 +338,11 @@ function setupCanvasInteractions() {
             tooltipText.innerHTML = `File: ${nearest.name}<br>Cluster: ${nearest.cluster}`;
             tooltip.classList.remove('hidden');
             
-            // Position tooltip next to cursor
             const tooltipW = tooltip.offsetWidth || 90;
             const tooltipH = tooltip.offsetHeight || 110;
             let left = mouseX + 15;
             let top = mouseY - tooltipH / 2;
             
-            // Check canvas bounds
             if (left + tooltipW > rect.width) {
                 left = mouseX - tooltipW - 15;
             }
@@ -349,14 +364,13 @@ function setupCanvasInteractions() {
         tooltip.classList.add('hidden');
     });
     
-    // Navigate on click
     canvas.addEventListener('click', (e) => {
         const rect = canvas.getBoundingClientRect();
         const mouseX = e.clientX - rect.left;
         const mouseY = e.clientY - rect.top;
         
         let nearest = null;
-        let minDist = 20;
+        let minDist = 22;
         
         appState.coords.forEach(pt => {
             const screenPt = toScreen(pt.x, pt.y);
@@ -374,39 +388,57 @@ function setupCanvasInteractions() {
     });
 }
 
-// --- Upload & Prediction Handlers ---
+// --- Mode Toggle Setup ---
+function setupModeToggle() {
+    btnModeImage.addEventListener('click', () => {
+        if (appState.currentMode === "image") return;
+        switchMode("image");
+    });
+    
+    btnModeWebcam.addEventListener('click', () => {
+        if (appState.currentMode === "webcam") return;
+        switchMode("webcam");
+    });
+}
+
+function switchMode(mode) {
+    appState.currentMode = mode;
+    
+    if (mode === "image") {
+        btnModeImage.classList.add('active');
+        btnModeWebcam.classList.remove('active');
+        imageModeContainer.classList.remove('hidden');
+        webcamModeContainer.classList.add('hidden');
+        
+        stopWebcam();
+        resetUpload();
+    } else {
+        btnModeWebcam.classList.add('active');
+        btnModeImage.classList.remove('active');
+        webcamModeContainer.classList.remove('hidden');
+        imageModeContainer.classList.add('hidden');
+        
+        resetUpload();
+        // Prompt loading models
+        initMediaPipe();
+    }
+}
+
+// --- Single Image Upload Handling ---
 function setupUploadHandlers() {
-    // Drag & Drop
-    ['dragenter', 'dragover'].forEach(eventName => {
-        dropZone.addEventListener(eventName, (e) => {
-            e.preventDefault();
-            dropZone.classList.add('dragover');
-        }, false);
-    });
-    
-    ['dragleave', 'drop'].forEach(eventName => {
-        dropZone.addEventListener(eventName, (e) => {
-            e.preventDefault();
-            dropZone.classList.remove('dragover');
-        }, false);
-    });
-    
+    dropZone.addEventListener('dragenter', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('dragover'); });
     dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('dragover');
         const dt = e.dataTransfer;
-        const files = dt.files;
-        if (files.length > 0) {
-            handleUploadedFile(files[0]);
-        }
+        if (dt.files.length > 0) handleUploadedFile(dt.files[0]);
     });
     
-    dropZone.addEventListener('click', () => {
-        fileInput.click();
-    });
-    
+    dropZone.addEventListener('click', () => fileInput.click());
     fileInput.addEventListener('change', (e) => {
-        if (e.target.files.length > 0) {
-            handleUploadedFile(e.target.files[0]);
-        }
+        if (e.target.files.length > 0) handleUploadedFile(e.target.files[0]);
     });
     
     btnReset.addEventListener('click', (e) => {
@@ -421,7 +453,6 @@ function handleUploadedFile(file) {
         return;
     }
     
-    // Display preview
     const reader = new FileReader();
     reader.onload = (e) => {
         imagePreview.src = e.target.result;
@@ -430,7 +461,6 @@ function handleUploadedFile(file) {
         processStatus.classList.remove('hidden');
         resultsBox.classList.add('hidden');
         
-        // Execute Prediction API
         uploadAndPredict(file);
     };
     reader.readAsDataURL(file);
@@ -446,55 +476,62 @@ async function uploadAndPredict(file) {
             body: formData
         });
         
-        if (!response.ok) throw new Error("Inference failed");
+        if (!response.ok) {
+            const errData = await response.json();
+            throw new Error(errData.error || "Inference failed");
+        }
         
         const result = await response.json();
-        
-        // Hide loader & show results
-        processStatus.classList.add('hidden');
-        resultsBox.classList.remove('hidden');
-        
-        // Render Cluster Badge
-        const clusterIdx = result.predicted_cluster;
-        predictedBadge.innerText = `${CLUSTER_NAMES[clusterIdx]} (Cluster ${clusterIdx})`;
-        predictedBadge.style.backgroundColor = CLUSTER_COLORS[clusterIdx];
-        predictedBadge.style.boxShadow = `0 0 20px ${CLUSTER_COLORS[clusterIdx]}50`;
-        
-        // Set prediction point to overlay on plot
-        appState.predictedPoint = {
-            x: result.x,
-            y: result.y,
-            cluster: clusterIdx
-        };
-        
-        // Update Representative Gallery Tab to Match Prediction
-        selectTab(clusterIdx);
-        
-        // Render Distances
-        renderDistances(result.distances, clusterIdx);
+        showPredictionResults(result);
         
     } catch (error) {
-        console.error("Error running prediction:", error);
-        processStatus.innerHTML = `<span style="color: #ef4444;"><i class="fa-solid fa-triangle-exclamation"></i> Analysis failed. Please try again.</span>`;
+        console.error("Error predicting:", error);
+        processStatus.innerHTML = `<span style="color: #ef4444;"><i class="fa-solid fa-triangle-exclamation"></i> ${error.message}</span>`;
     }
+}
+
+function showPredictionResults(result) {
+    processStatus.classList.add('hidden');
+    resultsBox.classList.remove('hidden');
+    
+    // Render Cluster Badge
+    const clusterIdx = result.predicted_cluster;
+    predictedBadge.innerText = `${CLUSTER_NAMES[clusterIdx]} (Cluster ${clusterIdx})`;
+    predictedBadge.style.backgroundColor = CLUSTER_COLORS[clusterIdx];
+    predictedBadge.style.boxShadow = `0 0 20px ${CLUSTER_COLORS[clusterIdx]}50`;
+    
+    // Render Emotion Badge with matching color
+    const emotion = result.emotion_label;
+    emotionBadge.innerText = emotion;
+    emotionBadge.style.background = EMOTION_COLORS[emotion] || '#6366f1';
+    emotionBadge.style.boxShadow = `0 0 20px ${EMOTION_COLORS[emotion] || '#6366f1'}50`;
+    
+    // Set prediction coordinates overlay on plot
+    appState.predictedPoint = {
+        x: result.x,
+        y: result.y,
+        cluster: clusterIdx
+    };
+    
+    // Update Representatives Gallery tab
+    selectTab(clusterIdx);
+    
+    // Render progress bars
+    renderDistances(result.distances, clusterIdx);
 }
 
 function renderDistances(distances, predictedClusterIdx) {
     distanceList.innerHTML = '';
     
-    // Find max distance to normalize progress bars (furthest centroid = shortest bar)
     const distValues = Object.values(distances);
     const maxDist = Math.max(...distValues);
     const minDist = Math.min(...distValues);
     
-    // Sort clusters by distance (closest first)
     const sortedClusters = Object.keys(distances).map(k => parseInt(k)).sort((a, b) => distances[a] - distances[b]);
     
     sortedClusters.forEach(idx => {
         const dist = distances[idx];
         
-        // Calculate similarity percentage (closeness)
-        // Normalize: closest is 100%, furthest is near 10%
         let pct = 100;
         if (maxDist > minDist) {
             pct = 15 + 85 * (1 - (dist - minDist) / (maxDist - minDist));
@@ -519,7 +556,6 @@ function renderDistances(distances, predictedClusterIdx) {
         
         distanceList.appendChild(item);
         
-        // Animate fill width after DOM insertion
         setTimeout(() => {
             item.querySelector('.dist-bar-fill').style.width = `${pct}%`;
         }, 100);
@@ -531,7 +567,262 @@ function resetUpload() {
     dropZone.classList.remove('hidden');
     previewContainer.classList.add('hidden');
     resultsBox.classList.add('hidden');
-    
-    // Clear prediction dot
     appState.predictedPoint = null;
+}
+
+// --- Webcam & MediaPipe Facial Scan Handlers ---
+function setupWebcamControls() {
+    btnStartWebcam.addEventListener('click', startWebcam);
+    btnStopWebcam.addEventListener('click', stopWebcam);
+}
+
+async function initMediaPipe() {
+    if (appState.faceLandmarker) return; // Already loaded
+    
+    webcamStatusOverlay.classList.remove('hidden');
+    webcamStatusText.innerText = "Loading MediaPipe WebAssembly...";
+    
+    try {
+        const visionBundle = await createFilesetResolver();
+        appState.faceLandmarker = await createFaceLandmarker(visionBundle);
+        webcamStatusText.innerText = "Ready to scan face.";
+        setTimeout(() => {
+            if (!appState.webcamActive) {
+                // Show prompt to start camera
+                webcamStatusText.innerText = "Camera scan is ready. Click 'Start Camera Scan'.";
+            }
+        }, 500);
+    } catch (error) {
+        console.error("Error loading MediaPipe FaceLandmarker:", error);
+        webcamStatusText.innerHTML = `<span style="color: #ef4444;"><i class="fa-solid fa-circle-exclamation"></i> Wasm compilation failed.</span>`;
+    }
+}
+
+// Helpers wrappers for MediaPipe Vision Web SDK
+async function createFilesetResolver() {
+    return await createFilesetResolverForVision(
+        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
+    );
+}
+
+async function createFilesetResolverForVision(url) {
+    // MediaPipe Vision Tasks resolver global namespace wrapper from Vision bundle script
+    if (typeof Module !== 'undefined' && typeof createFilesetResolver !== 'undefined') {
+        return await createFilesetResolver(url);
+    }
+    // Standard module import mapping fallback
+    const { FilesetResolver } = dummy_mediapipe_bundle_vision_namespace();
+    return await FilesetResolver.forVisionTasks(url);
+}
+
+function dummy_mediapipe_bundle_vision_namespace() {
+    // If the bundle loaded, it injects "mp" or "mediapipe" globals on window
+    const mpTasks = window.mp || window.mediapipe || {};
+    return mpTasks.tasks || {};
+}
+
+async function createFaceLandmarker(visionBundle) {
+    const mpTasks = window.mp || window.mediapipe || {};
+    const FaceLandmarker = mpTasks.tasks.FaceLandmarker;
+    
+    return await FaceLandmarker.createFromOptions(visionBundle, {
+        baseOptions: {
+            modelAssetPath: "/face_landmarker.task",
+            delegate: "GPU"
+        },
+        outputFaceBlendshapes: true,
+        outputFacialTransformationMatrixes: false,
+        runningMode: "VIDEO",
+        numFaces: 1
+    });
+}
+
+async function startWebcam() {
+    if (!appState.faceLandmarker) {
+        await initMediaPipe();
+    }
+    
+    webcamStatusOverlay.classList.remove('hidden');
+    webcamStatusText.innerText = "Accessing camera feed...";
+    
+    try {
+        const constraints = {
+            video: {
+                width: { ideal: 640 },
+                height: { ideal: 480 },
+                facingMode: "user"
+            },
+            audio: false
+        };
+        
+        appState.stream = await navigator.mediaDevices.getUserMedia(constraints);
+        webcamVideo.srcObject = appState.stream;
+        
+        // Start play stream
+        webcamVideo.addEventListener('loadedmetadata', () => {
+            webcamVideo.play();
+            appState.webcamActive = true;
+            btnStartWebcam.classList.add('hidden');
+            btnStopWebcam.classList.remove('hidden');
+            webcamStatusOverlay.classList.add('hidden');
+            
+            // Adjust overlay sizes
+            adjustOverlayCanvas();
+            
+            // Trigger processing loop
+            requestAnimationFrame(processWebcamFrame);
+        });
+        
+    } catch (error) {
+        console.error("Camera access denied:", error);
+        webcamStatusText.innerHTML = `<span style="color: #ef4444;"><i class="fa-solid fa-triangle-exclamation"></i> Camera permission denied. Check your browser security.</span>`;
+    }
+}
+
+function stopWebcam() {
+    if (appState.stream) {
+        appState.stream.getTracks().forEach(track => track.stop());
+    }
+    
+    webcamVideo.srcObject = null;
+    appState.webcamActive = false;
+    btnStopWebcam.classList.add('hidden');
+    btnStartWebcam.classList.remove('hidden');
+    webcamStatusOverlay.classList.remove('hidden');
+    webcamStatusText.innerText = "Camera scan is stopped.";
+    
+    // Clear overlay
+    webcamOverlayCtx.clearRect(0, 0, webcamOverlay.width, webcamOverlay.height);
+    
+    // Hide prediction results
+    resultsBox.classList.add('hidden');
+    appState.predictedPoint = null;
+}
+
+function adjustOverlayCanvas() {
+    webcamOverlay.width = webcamVideo.clientWidth;
+    webcamOverlay.height = webcamVideo.clientHeight;
+}
+
+// MediaPipe frame loop
+function processWebcamFrame() {
+    if (!appState.webcamActive || !appState.faceLandmarker) return;
+    
+    // Sync sizes if wrapper changed sizes
+    if (webcamOverlay.width !== webcamVideo.clientWidth) {
+        adjustOverlayCanvas();
+    }
+    
+    let now = performance.now();
+    let result = null;
+    
+    try {
+        if (webcamVideo.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+            result = appState.faceLandmarker.detectForVideo(webcamVideo, now);
+        }
+    } catch (e) {
+        console.error("Face landmarker tracking error:", e);
+    }
+    
+    // Draw landmarks overlay
+    webcamOverlayCtx.clearRect(0, 0, webcamOverlay.width, webcamOverlay.height);
+    
+    if (result && result.faceLandmarks && result.faceLandmarks.length > 0) {
+        const landmarks = result.faceLandmarks[0];
+        
+        // Draw facial wireframe outlines (eyes, eyebrows, mouth)
+        drawFaceWireframe(landmarks);
+        
+        // Check inference throttle
+        const nowMs = Date.now();
+        if (nowMs - appState.lastInferenceTime > appState.inferenceThrottleMs) {
+            appState.lastInferenceTime = nowMs;
+            
+            if (result.faceBlendshapes && result.faceBlendshapes.length > 0) {
+                const categories = result.faceBlendshapes[0].categories;
+                const blendshapesDict = {};
+                categories.forEach(item => {
+                    blendshapesDict[item.categoryName] = item.score;
+                });
+                
+                // Submit blendshape scores array to API
+                submitBlendshapes(blendshapesDict);
+            }
+        }
+    }
+    
+    // Recursive frame capture loop
+    requestAnimationFrame(processWebcamFrame);
+}
+
+// Draw key connections (eyes, lips, brows) to give a neat scan effect
+function drawFaceWireframe(landmarks) {
+    const ctx = webcamOverlayCtx;
+    const w = webcamOverlay.width;
+    const h = webcamOverlay.height;
+    
+    ctx.strokeStyle = '#10b98188'; // Neon green outline
+    ctx.lineWidth = 1;
+    
+    // Define helper to draw outlines
+    function drawPath(indices, close = false) {
+        ctx.beginPath();
+        indices.forEach((idx, i) => {
+            const pt = landmarks[idx];
+            if (i === 0) ctx.moveTo(pt.x * w, pt.y * h);
+            else ctx.lineTo(pt.x * w, pt.y * h);
+        });
+        if (close) ctx.closePath();
+        ctx.stroke();
+    }
+    
+    // Indices references for key face outlines
+    const L_EYE_OUTLINE = [33, 160, 158, 133, 153, 144];
+    const R_EYE_OUTLINE = [362, 385, 387, 263, 373, 380];
+    const L_BROW = [70, 63, 105, 66, 107];
+    const R_BROW = [300, 293, 334, 296, 336];
+    const LIPS_OUTER = [61, 185, 40, 39, 37, 0, 267, 269, 270, 409, 291, 375, 321, 405, 314, 17, 84, 181, 91, 146];
+    const FACE_OVAL = [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109];
+    
+    drawPath(L_EYE_OUTLINE, true);
+    drawPath(R_EYE_OUTLINE, true);
+    drawPath(L_BROW);
+    drawPath(R_BROW);
+    drawPath(LIPS_OUTER, true);
+    
+    // Draw bounding box
+    const xs = landmarks.map(p => p.x * w);
+    const ys = landmarks.map(p => p.y * h);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
+    
+    // Draw square scanning box
+    ctx.strokeStyle = '#10b981';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(minX - 10, minY - 15, (maxX - minX) + 20, (maxY - minY) + 30);
+    
+    // Scanner Text tag
+    ctx.fillStyle = '#10b981';
+    ctx.font = 'bold 10px Plus Jakarta Sans';
+    ctx.fillText("AI REALTIME SCAN", minX - 10, minY - 22);
+}
+
+async function submitBlendshapes(blendshapesDict) {
+    try {
+        const response = await fetch('/api/predict_blendshapes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ blendshapes: blendshapesDict })
+        });
+        
+        if (!response.ok) throw new Error("Blendshape API prediction failed");
+        
+        const result = await response.json();
+        showPredictionResults(result);
+        
+    } catch (e) {
+        console.error("Failed to run blendshape prediction:", e);
+    }
 }

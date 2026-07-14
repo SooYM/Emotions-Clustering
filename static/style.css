@@ -110,7 +110,7 @@ body {
 /* Grid Dashboard */
 .dashboard-grid {
     display: grid;
-    grid-template-columns: 1.5fr 1fr;
+    grid-template-columns: 1.4fr 1fr;
     gap: 2rem;
 }
 
@@ -177,6 +177,40 @@ body {
     background: rgba(99, 102, 241, 0.15);
     border-color: rgba(99, 102, 241, 0.3);
     color: #a5b4fc;
+}
+
+/* Inference Mode Toggle Tabs */
+.toggle-tabs {
+    display: flex;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+    padding: 2px;
+}
+
+.toggle-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    padding: 0.35rem 0.85rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    transition: all 0.2s ease;
+}
+
+.toggle-btn:hover {
+    color: var(--text-primary);
+}
+
+.toggle-btn.active {
+    background: var(--accent);
+    color: white;
+    box-shadow: 0 4px 12px var(--accent-glow);
 }
 
 /* Left Column: Latent Space Plot */
@@ -280,6 +314,10 @@ body {
     gap: 1.5rem;
     flex-grow: 1;
     justify-content: center;
+}
+
+.mode-container {
+    width: 100%;
 }
 
 .drop-zone {
@@ -395,6 +433,114 @@ body {
     border-color: #ef4444;
 }
 
+/* Webcam Scanner Styles */
+.webcam-scanner {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    align-items: center;
+}
+
+.webcam-video-wrapper {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1.333;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #020408;
+    border: 1px solid var(--card-border);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+
+#webcamVideo {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1); /* Mirror camera stream */
+}
+
+#webcamOverlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    transform: scaleX(-1); /* Mirror canvas to align with camera */
+    z-index: 2;
+}
+
+.scanner-curtain {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(4, 6, 12, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 3;
+    transition: opacity 0.3s ease;
+}
+
+.curtain-loader {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.spinner.large {
+    width: 32px;
+    height: 32px;
+    border-width: 3px;
+}
+
+.webcam-controls {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+}
+
+.btn-webcam {
+    border: none;
+    border-radius: 8px;
+    padding: 0.6rem 1.5rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.25s ease;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+}
+
+.btn-webcam.start {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white;
+}
+
+.btn-webcam.start:hover {
+    box-shadow: 0 6px 20px rgba(16, 185, 129, 0.3);
+    transform: translateY(-1px);
+}
+
+.btn-webcam.stop {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    color: white;
+}
+
+.btn-webcam.stop:hover {
+    box-shadow: 0 6px 20px rgba(239, 68, 68, 0.3);
+    transform: translateY(-1px);
+}
+
 /* Processing Status */
 .process-status {
     display: flex;
@@ -430,28 +576,37 @@ body {
     border: 1px solid rgba(255, 255, 255, 0.05);
     border-radius: 12px;
     padding: 1rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+}
+
+.result-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
 }
 
 .cluster-match h3 {
-    font-size: 0.9rem;
+    font-size: 0.8rem;
     color: var(--text-muted);
     font-weight: 500;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    margin-bottom: 0.25rem;
+    margin-bottom: 0.4rem;
 }
 
-.predicted-cluster-badge {
-    padding: 0.4rem 1.2rem;
+.predicted-cluster-badge, .emotion-badge {
+    padding: 0.4rem 1rem;
     border-radius: 8px;
     font-family: 'Outfit', sans-serif;
-    font-size: 1.15rem;
+    font-size: 1rem;
     font-weight: 700;
     color: white;
-    box-shadow: 0 0 15px rgba(255, 255, 255, 0.1);
+    text-align: center;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.emotion-badge {
+    background: linear-gradient(135deg, var(--accent) 0%, #4338ca 100%);
+    text-transform: capitalize;
 }
 
 .similarity-section {
@@ -497,7 +652,7 @@ body {
     height: 100%;
     border-radius: 99px;
     width: 0%;
-    transition: width 0.8s cubic-bezier(0.1, 0.8, 0.2, 1);
+    transition: width 0.4s cubic-bezier(0.1, 0.8, 0.2, 1);
     box-shadow: 0 0 10px currentColor;
 }
 
