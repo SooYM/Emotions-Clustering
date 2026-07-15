@@ -1,3 +1,5 @@
+import { FaceLandmarker, FilesetResolver } from './vision_bundle.mjs';
+
 // Application Configuration and State
 const CLUSTER_COLORS = [
     '#38bdf8', // 0: Sky Blue
@@ -623,33 +625,11 @@ async function createFilesetResolver() {
 }
 
 async function createFilesetResolverForVision(url) {
-    // Resolve from global 'vision' namespace (vision_bundle.js CDN)
-    if (window.vision && window.vision.FilesetResolver) {
-        return await window.vision.FilesetResolver.forVisionTasks(url);
-    }
-    // Fallback: Resolve from window.mp or window.mediapipe
-    const mpTasks = window.mp || window.mediapipe || {};
-    const tasksNamespace = mpTasks.tasks || window.vision || {};
-    if (tasksNamespace.FilesetResolver) {
-        return await tasksNamespace.FilesetResolver.forVisionTasks(url);
-    }
-    // Fallback for global createFilesetResolver helper
-    if (typeof createFilesetResolver !== 'undefined') {
-        return await createFilesetResolver(url);
-    }
-    throw new Error("FilesetResolver is not defined in any loaded namespace.");
+    return await FilesetResolver.forVisionTasks(url);
 }
 
 async function createFaceLandmarker(visionBundle) {
-    const mpTasks = window.mp || window.mediapipe || {};
-    const tasksNamespace = mpTasks.tasks || window.vision || {};
-    const FaceLandmarker = tasksNamespace.FaceLandmarker;
-    
-    if (!FaceLandmarker) {
-        throw new Error("FaceLandmarker is not defined in any loaded namespace.");
-    }
-    
-    return await FaceLandmarker.createFromOptions(visionBundle, {
+    const options = {
         baseOptions: {
             modelAssetPath: "/face_landmarker.task",
             delegate: "GPU"
@@ -658,12 +638,26 @@ async function createFaceLandmarker(visionBundle) {
         outputFacialTransformationMatrixes: false,
         runningMode: "VIDEO",
         numFaces: 1
-    });
+    };
+
+    try {
+        return await FaceLandmarker.createFromOptions(visionBundle, options);
+    } catch (gpuError) {
+        console.warn("MediaPipe GPU initialization failed; retrying on CPU.", gpuError);
+        options.baseOptions.delegate = "CPU";
+        return await FaceLandmarker.createFromOptions(visionBundle, options);
+    }
 }
 
 async function startWebcam() {
     if (!appState.faceLandmarker) {
         await initMediaPipe();
+    }
+
+    if (!appState.faceLandmarker) {
+        webcamStatusOverlay.classList.remove('hidden');
+        webcamStatusText.innerHTML = `<span style="color: #ef4444;"><i class="fa-solid fa-circle-exclamation"></i> Face scanner could not be loaded.</span>`;
+        return;
     }
     
     webcamStatusOverlay.classList.remove('hidden');
@@ -803,13 +797,16 @@ function drawFaceMesh(landmarks, emotionColor) {
     const ctx = webcamOverlayCtx;
     const w = webcamOverlay.width;
     const h = webcamOverlay.height;
+    // The video is mirrored with CSS for a natural selfie view. Mirror only
+    // landmark x-coordinates so canvas text remains readable.
+    const xPos = (landmark) => (1 - landmark.x) * w;
     
     // 1. Draw delicate point cloud (all 478 landmarks)
     ctx.fillStyle = "rgba(224, 242, 254, 0.22)"; // Translucent light blue
     for (let i = 0; i < landmarks.length; i++) {
         const pt = landmarks[i];
         ctx.beginPath();
-        ctx.arc(pt.x * w, pt.y * h, 1.2, 0, 2 * Math.PI);
+        ctx.arc(xPos(pt), pt.y * h, 1.2, 0, 2 * Math.PI);
         ctx.fill();
     }
     
@@ -824,10 +821,10 @@ function drawFaceMesh(landmarks, emotionColor) {
         if (indices.length === 0) return;
         ctx.beginPath();
         const first = landmarks[indices[0]];
-        ctx.moveTo(first.x * w, first.y * h);
+        ctx.moveTo(xPos(first), first.y * h);
         for (let i = 1; i < indices.length; i++) {
             const pt = landmarks[indices[i]];
-            ctx.lineTo(pt.x * w, pt.y * h);
+            ctx.lineTo(xPos(pt), pt.y * h);
         }
         if (close) ctx.closePath();
         ctx.stroke();
@@ -849,12 +846,12 @@ function drawFaceMesh(landmarks, emotionColor) {
     const rPupil = landmarks[473];
     if (lPupil) {
         ctx.beginPath();
-        ctx.arc(lPupil.x * w, lPupil.y * h, 2.5, 0, 2 * Math.PI);
+        ctx.arc(xPos(lPupil), lPupil.y * h, 2.5, 0, 2 * Math.PI);
         ctx.fill();
     }
     if (rPupil) {
         ctx.beginPath();
-        ctx.arc(rPupil.x * w, rPupil.y * h, 2.5, 0, 2 * Math.PI);
+        ctx.arc(xPos(rPupil), rPupil.y * h, 2.5, 0, 2 * Math.PI);
         ctx.fill();
     }
     ctx.shadowBlur = 0; // Reset
@@ -868,7 +865,7 @@ function drawFaceMesh(landmarks, emotionColor) {
         if (lm.y > maxY) maxY = lm.y;
     }
     
-    let boxX = minX * w;
+    let boxX = (1 - maxX) * w;
     let boxY = minY * h;
     let boxW = (maxX - minX) * w;
     let boxH = (maxY - minY) * h;

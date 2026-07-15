@@ -32,7 +32,6 @@ DOWNSAMPLED_COORDS_PATH = os.path.join(DATA_DIR, "coords_downsampled.pkl")
 REPRESENTATIVE_PATH = os.path.join(DATA_DIR, "representatives.pkl")
 EMOTION_MODEL_PATH = os.path.join(DATA_DIR, "emotion_model.pkl")
 LANDMARKER_MODEL_PATH = os.path.join(BASE_DIR, "face_landmarker.task")
-CLASSIFICATION_CACHE_PATH = "/Users/sooyauming/Desktop/Intern/Classification/dataset_features.npz"
 
 # Initialize Flask
 app = Flask(__name__, 
@@ -51,6 +50,21 @@ features = None
 image_names = None
 
 EMOTIONS = ["happy", "sad", "anxiety", "angry", "surprised", "disgust", "neutral"]
+FEATURE_NAMES = [
+    "_neutral", "browDownLeft", "browDownRight", "browInnerUp",
+    "browOuterUpLeft", "browOuterUpRight", "cheekPuff", "cheekSquintLeft",
+    "cheekSquintRight", "eyeBlinkLeft", "eyeBlinkRight", "eyeLookDownLeft",
+    "eyeLookDownRight", "eyeLookInLeft", "eyeLookInRight", "eyeLookOutLeft",
+    "eyeLookOutRight", "eyeLookUpLeft", "eyeLookUpRight", "eyeSquintLeft",
+    "eyeSquintRight", "eyeWideLeft", "eyeWideRight", "jawForward", "jawLeft",
+    "jawOpen", "jawRight", "mouthClose", "mouthDimpleLeft", "mouthDimpleRight",
+    "mouthFrownLeft", "mouthFrownRight", "mouthFunnel", "mouthLeft",
+    "mouthLowerDownLeft", "mouthLowerDownRight", "mouthPressLeft",
+    "mouthPressRight", "mouthPucker", "mouthRight", "mouthRollLower",
+    "mouthRollUpper", "mouthShrugLower", "mouthShrugUpper", "mouthSmileLeft",
+    "mouthSmileRight", "mouthStretchLeft", "mouthStretchRight",
+    "mouthUpperUpLeft", "mouthUpperUpRight", "noseSneerLeft", "noseSneerRight"
+]
 
 def load_models():
     global kmeans_model, knn_model, emotion_model, coords_downsampled, representatives, feature_names, detector, features, image_names
@@ -82,9 +96,7 @@ def load_models():
         with open(REPRESENTATIVE_PATH, "rb") as f:
             representatives = pickle.load(f)
             
-    if os.path.exists(CLASSIFICATION_CACHE_PATH):
-        cache = np.load(CLASSIFICATION_CACHE_PATH, allow_pickle=True)
-        feature_names = list(cache["feature_names"])
+    feature_names = FEATURE_NAMES
         
     # Setup MediaPipe FaceLandmarker
     if os.path.exists(LANDMARKER_MODEL_PATH):
